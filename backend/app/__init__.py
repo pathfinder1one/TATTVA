@@ -1,0 +1,1 @@
+"""TATTVA backend application."""

@@ -1,0 +1,1 @@
+Synthetic statement: On 2026-10-19, Person Example reported seeing a blue vehicle near the north gate at 09:15. This sentence is fabricated for a local backend smoke check.

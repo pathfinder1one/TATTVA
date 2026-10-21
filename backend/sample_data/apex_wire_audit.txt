@@ -1,0 +1,16 @@
+CONFIDENTIAL FORENSIC AUDIT MEMORANDUM
+CASE REF: CASE-2024-001
+DATE: OCTOBER 14, 2024
+SUBJECT: WIRE TRANSFER DISCREPANCY & BENEFICIAL OWNERSHIP AUDIT
+
+1. EXECUTIVE SUMMARY
+A forensic review of international wire transfers revealed a $4,200,000 transaction originating from Zurich Trust AG to an escrow account registered under Seashell Escrow Ltd on May 12, 2024. The invoice documentation references Apex Holdings LLC (Registration No. 89412-BVI).
+
+2. KEY ANOMALIES & CONTRADICTIONS
+- Timeline Discrepancy: The official British Virgin Islands registry indicates Apex Holdings LLC was legally incorporated on June 20, 2024, exactly 39 days AFTER the wire transfer was executed.
+- Authorized Signatory: Passport records identify John Doe as the sole beneficial owner of Seashell Escrow Ltd, directly contradicting filed conflict-of-interest declarations with Vanguard Realty Group.
+
+3. FORENSIC EVIDENCE CITATIONS
+- Transfer Slip Ref: WTR-2024-88912 ($4,200,000.00 USD)
+- Corporate Registry Doc: BVI-REG-2024-4112
+- Conflict Disclosure: SEC-DISC-09142
