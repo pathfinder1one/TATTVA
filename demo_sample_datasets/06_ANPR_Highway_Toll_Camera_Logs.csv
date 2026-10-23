@@ -1,0 +1,6 @@
+toll_entry_id,toll_plaza_name,lane_number,vehicle_plate_number,vehicle_make_model,timestamp_ist,speed_kmph,rfid_tag_id,anpr_confidence
+ANPR-9901,Faridabad-Gurugram Expressway Toll,Lane 04,DL-3C-AZ-9901,Toyota Land Cruiser Black,2024-10-12 21:55:12,68,FASTAG-349018-DL,0.98
+ANPR-9902,Chhatarpur Border Barrier Checkpoint,Lane 02,DL-3C-AZ-9901,Toyota Land Cruiser Black,2024-10-12 22:18:40,32,FASTAG-349018-DL,0.95
+ANPR-9903,Faridabad Toll (Return Towards Delhi),Lane 07,DL-3C-AZ-9901,Toyota Land Cruiser Black,2024-10-12 22:52:19,84,FASTAG-349018-DL,0.99
+ANPR-9904,DND Flyway Mayur Vihar Toll,Lane 03,DL-3C-AZ-9901,Toyota Land Cruiser Black,2024-10-14 22:45:00,72,FASTAG-349018-DL,0.97
+ANPR-9905,Noida Sector-128 Expressway Toll,Lane 05,DL-3C-AZ-9901,Toyota Land Cruiser Black,2024-10-14 23:18:14,64,FASTAG-349018-DL,0.99

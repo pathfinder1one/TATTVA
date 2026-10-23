@@ -1,0 +1,23 @@
+FIRST INFORMATION REPORT (Under Section 154 Cr.P.C. / Section 173 BNSS)
+STATE: NCT OF DELHI
+POLICE STATION: SPECIAL CELL, LODHI COLONY
+FIR NO: 0114/2024
+DATE OF OCCURRENCE: 12-OCT-2024 02:45 HOURS
+OFFENCES: Section 21/29 NDPS Act, Section 120B IPC, Section 420 IPC
+
+1. COMPLAINANT / INFORMANT:
+Inspector R. K. Sharma, Special Cell Narcotics Interception Squad.
+
+2. SUSPECTS & ACCUSED DETAILS:
+- Accused #1: Vikramaditya 'Vikram' Singhania, R/o Sector 42, Gurugram. Role: Kingpin / Financier commanding Hawala structuring network. Operates overseas communications.
+- Accused #2: Farhan Qureshi, R/o Chandni Chowk, Old Delhi. Role: Chief Intermediary / Hawala Operator managing transit accounts.
+- Accused #3: Jaspreet 'Jassi' Singh, R/o Amritsar Border Range. Role: Logistics Coordinator and Transport Courier. Phone: +91-98110-23451.
+- Intermediary Firm: Seashell Escrow Ltd / Apex Holdings LLC, routing structured shell transfers.
+
+3. DETAILS OF SEIZED EVIDENCE:
+- Seized Item #1: Samsung S23 Ultra smartphone (IMEI: 358921094821049) recovered from Jaspreet Singh containing encrypted call logs.
+- Seized Item #2: Consignment of 14.5 kg contraband concealed inside commercial consignment truck registration DL-1GB-4421.
+- Seized Item #3: Handwritten Hawala diary referencing token number "TRIDENT-77" showing credits to Farhan Qureshi.
+
+4. INVESTIGATIVE SUMMARY & INTERROGATION CONTRADICTIONS:
+During preliminary interrogation on 14-OCT-2024, suspect Vikramaditya Singhania sworn under affidavit that he had never communicated with or met Farhan Qureshi prior to September 2024. However, CDR Telecom Tower logs from Connaught Place cell tower reveal over 142 telephonic interactions between +91-98710-11223 (Singhania) and +91-98112-99881 (Farhan) between March 2024 and July 2024. Furthermore, international wire transfer receipts confirm $4,200,000 USD was transferred through escrow 39 days prior to the incorporation of the referenced corporate beneficiary.

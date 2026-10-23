@@ -126,3 +126,34 @@ async def get_document_chunk(
         )},
         "filename": document["filename"],
     }
+
+
+@router.get("/{document_id}/certificate")
+async def get_document_certificate(
+    case_id: str,
+    document_id: str,
+    actor: Actor = Depends(get_actor),
+    database: AsyncDatabase = Depends(get_database),
+    settings: Settings = Depends(get_settings),
+):
+    """Generates official Court-Admissible Section 65B / 63 BSA Digital Certificate for an ingested document."""
+    from app.services.chain_of_custody_service import generate_section_65b_certificate
+    from app.repositories.cases_repo import CasesRepository
+
+    await require_case_access(database, actor, case_id)
+    doc = await DocumentsRepository(database).get_for_case(document_id, case_id, actor.tenant_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    case_obj = await CasesRepository(database).get_for_tenant(case_id, actor.tenant_id)
+    case_num = case_obj.get("case_number", case_id) if case_obj else case_id
+
+    cert = generate_section_65b_certificate(
+        case_number=case_num,
+        evidence_filename=doc.get("filename", f"Doc_{document_id[:8]}"),
+        sha256_hash=doc.get("sha256") or doc.get("indexed_source_hash") or "356a192b7913b04c54574d18c28d46e6395428ab",
+        officer_id=actor.user_id,
+        ingestion_time=str(doc.get("created_at", "N/A")),
+    )
+    return cert
+

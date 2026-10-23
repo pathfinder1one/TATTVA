@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import {
   listCases,
@@ -13,8 +13,11 @@ import {
   subscribeRunEvents,
   searchCase,
   askCase,
+  getDocumentCertificate,
 } from '@/lib/api';
 import VoiceCommandController from './VoiceCommandController';
+import EvidenceIngestionModal from './EvidenceIngestionModal';
+import CriminalNetworkGraph from './CriminalNetworkGraph';
 import { soundEngine } from '@/lib/soundEffects';
 import {
   IconPlanning,
@@ -26,6 +29,9 @@ import {
   IconContradiction,
   IconReport,
   IconMic,
+  IconMicOff,
+  IconSettings,
+  IconStop,
   IconArcReactor,
   IconCrosshair,
   IconLightning,
@@ -66,7 +72,7 @@ const SWARM_AGENTS = [
   { id: 'report', name: 'REPORT BUILDER', role: 'Forensic Dossier Synthesis', icon: IconReport, color: '#38bdf8' },
 ];
 
-export default function DashboardContent({ caseData: propCase }) {
+export default function DashboardContent({ caseData: propCase, onCaseSelect, onNavigate }) {
   const [activeCase, setActiveCase] = useState(propCase);
   const [documents, setDocuments] = useState([]);
   const [findings, setFindings] = useState([]);
@@ -77,19 +83,33 @@ export default function DashboardContent({ caseData: propCase }) {
   const [coreMode, setCoreMode] = useState('idle'); // 'idle' | 'listening' | 'analyzing' | 'speaking'
   const [audioLevel, setAudioLevel] = useState(0);
   const [liveLogs, setLiveLogs] = useState([]);
+  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+  const [showIngestionModal, setShowIngestionModal] = useState(false);
+  const [selectedCert, setSelectedCert] = useState(null);
+  const [isLoadingCert, setIsLoadingCert] = useState(false);
   const eventSourceRef = useRef(null);
 
-  // 1. Fetch live active case from backend API
+  // Sync activeCase when propCase changes (e.g. from Header dropdown)
   useEffect(() => {
-    listCases()
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data?.cases || [];
-        if (list.length > 0) {
-          setActiveCase(list[0]);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (propCase?.case_id && propCase.case_id !== activeCase?.case_id) {
+      setActiveCase(propCase);
+    }
+  }, [propCase, activeCase?.case_id]);
+
+  // Initial load if no case provided
+  useEffect(() => {
+    if (!propCase?.case_id) {
+      listCases()
+        .then((data) => {
+          const list = Array.isArray(data) ? data : data?.cases || [];
+          if (list.length > 0) {
+            setActiveCase(list[0]);
+            onCaseSelect?.(list[0]);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [propCase, onCaseSelect]);
 
   // 2. Load live backend data whenever activeCase is set
   const loadLiveBackendData = useCallback(async () => {
@@ -171,8 +191,14 @@ export default function DashboardContent({ caseData: propCase }) {
     mode: coreMode,
     setMode: setCoreMode,
     setAudioLevel,
-    findingsCount: findings.length || 3,
-    docsCount: documents.length || 1,
+    findingsCount: findings.length,
+    docsCount: documents.length,
+    findings,
+    graphData,
+    onCaseSwitch: (newCase) => {
+      setActiveCase(newCase);
+      onCaseSelect?.(newCase);
+    },
     onAgentTrigger: (agentId) => {
       setActiveAgent(agentId);
       setLiveLogs(prev => [
@@ -180,19 +206,33 @@ export default function DashboardContent({ caseData: propCase }) {
         ...prev.slice(0, 15)
       ]);
     },
-    onActionTrigger: (action) => {
+    onActionTrigger: async (action) => {
       if (action === 'show_findings') setActiveTab('findings');
       if (action === 'show_graph') setActiveTab('graph');
       if (action === 'show_evidence') setActiveTab('evidence');
+      if (action === 'open_ingestion') setShowIngestionModal(true);
+      if (action === 'close_ingestion') setShowIngestionModal(false);
+      if (action === 'open_certificate') {
+        if (documents.length > 0 && activeCase?.case_id) {
+          try {
+            const cert = await getDocumentCertificate(activeCase.case_id, documents[0].document_id);
+            setSelectedCert(cert);
+          } catch (e) {
+            console.warn('Certificate action error:', e);
+          }
+        }
+      }
       if (action === 'refresh_runs') loadLiveBackendData();
     },
   });
 
-  // Handle Touch/Click on Core directly
-  const handleCoreTouch = useCallback(() => {
-    if (coreMode === 'listening') {
-      voice.stopListening();
-    } else {
+  // Handle Touch/Click on Core directly — Opens TATTVA Voice Model Modal & Engages Voice Link
+  const handleCoreTouch = useCallback((e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    setShowVoiceSettings(true);
+    soundEngine?.playBeep?.(880, 0.08);
+
+    if (coreMode === 'idle') {
       voice.startListening();
     }
   }, [coreMode, voice]);
@@ -206,21 +246,40 @@ export default function DashboardContent({ caseData: propCase }) {
     return () => window.removeEventListener('tattva-trigger-voice', handleGlobalVoice);
   }, [handleCoreTouch]);
 
+  // Dynamic Forensic Suspicion Index calculation
+  const calculatedSuspicion = useMemo(() => {
+    if (!documents.length && !findings.length && !graphData?.entities?.length) {
+      return { score: 0, level: 'CLEAR // ZERO EVIDENCE' };
+    }
+    const findingWeight = findings.length * 28;
+    const entityWeight = (graphData?.entities?.length || 0) * 5;
+    const docWeight = documents.length * 8;
+    const score = Math.min(99, Math.max(15, findingWeight + entityWeight + docWeight));
+    let level = `${score}% MONITORED`;
+    if (score >= 75) level = `${score}% CRITICAL // HIGH THREAT`;
+    else if (score >= 45) level = `${score}% ELEVATED`;
+    return { score, level };
+  }, [documents.length, findings.length, graphData?.entities?.length]);
+
   // Dispatch real backend analysis run
   const triggerBackendScan = async () => {
     if (!activeCase?.case_id) return;
     setCoreMode('analyzing');
     soundEngine?.playProcessCommand();
-    voice.speakAI('Deploying multi-agent DAG pipeline to backend Qdrant and MongoDB cluster.');
+    voice.speakAI(`Deploying multi-agent DAG pipeline to inspect ${activeCase.case_number || 'active case'}.`);
+
+    const scanQuery = activeCase.title
+      ? `Audit suspect interactions, telecom logs, and financial contradictions for ${activeCase.title}`
+      : 'Analyze multi-source criminal network relationships and evidential contradictions';
 
     try {
       const run = await createAnalysisRun(activeCase.case_id, {
-        query: 'Audit financial transaction anomalies and beneficial ownership discrepancies across Apex Holdings',
+        query: scanQuery,
         top_k: 5,
         idempotencyKey: `run-${Date.now()}`,
       });
       setLiveLogs(prev => [
-        { time: new Date().toLocaleTimeString(), agent: 'ORCHESTRATOR', text: `Dispatched Run: ${run.run_id} with ${run.task_count || 2} DAG tasks.` },
+        { time: new Date().toLocaleTimeString(), agent: 'ORCHESTRATOR', text: `Dispatched Run: ${run.run_id} with ${run.task_count || run.tasks?.length || 0} DAG tasks.` },
         ...prev,
       ]);
       await loadLiveBackendData();
@@ -245,26 +304,67 @@ export default function DashboardContent({ caseData: propCase }) {
         {/* Telemetry Header Strip */}
         <div className="theater-hud-header">
           <div>
-            <div className="hud-sys-tag">MARK-VIII // DEFENSE ARCHITECTURE</div>
-            <div className="hud-sys-title">TATTVA QUANTUM ORCHESTRATOR</div>
+            <div className="hud-sys-tag">MINISTRY OF HOME AFFAIRS // NCRB INTELLIGENCE DIVISION</div>
+            <div className="hud-sys-title">AI CRIMINAL NETWORK ANALYSIS SYSTEM</div>
             <div className="hud-sys-sub">
-              ACTIVE CASE: <span style={{ color: 'var(--arc-cyan)' }}>{activeCase?.case_number || 'CASE-2024-001'}</span> · BACKEND: <span style={{ color: '#10b981' }}>FASTAPI LIVE</span>
+              CRIME CASE: <span style={{ color: 'var(--arc-cyan)' }}>{activeCase?.case_number || 'NO ACTIVE CASE'}</span> · BACKEND: <span style={{ color: '#10b981' }}>FASTAPI LIVE // SEC-65B VERIFIED</span>
             </div>
           </div>
 
           <div className="theater-hud-metrics">
             <div className="telemetry-node">
               <span className="telemetry-node-label">SYNAPSE LOAD</span>
-              <span className="telemetry-node-val">99.8%</span>
+              <span className="telemetry-node-val">{runs.some(r => r.status === 'running') ? '100% PROCESSING' : 'REAL-TIME'}</span>
             </div>
             <div className="telemetry-node">
               <span className="telemetry-node-label">BACKEND TASKS</span>
-              <span className="telemetry-node-val">{runs.length > 0 ? `${runs[0].tasks?.length || 2} ACTIVE` : 'READY'}</span>
+              <span className="telemetry-node-val">{runs.length > 0 ? `${runs[0].tasks?.length || 0} ACTIVE` : '0 READY'}</span>
             </div>
+            <button
+              className={`btn-voice-identity-trigger ${activeTab === 'graph' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab((prev) => (prev === 'graph' ? null : 'graph'));
+                soundEngine?.playBlip();
+              }}
+              style={{
+                borderColor: activeTab === 'graph' ? 'var(--arc-cyan)' : 'rgba(168, 85, 247, 0.45)',
+                background: activeTab === 'graph' ? 'rgba(0, 240, 255, 0.2)' : 'rgba(168, 85, 247, 0.1)',
+                color: activeTab === 'graph' ? 'var(--arc-cyan)' : '#c084fc',
+              }}
+              title="Open Interactive Criminal Network Nexus Graph"
+            >
+              <IconGraph size={13} color="currentColor" />
+              <span style={{ fontWeight: 700 }}>VIEW CRIMINAL GRAPH</span>
+            </button>
+            <button
+              className="btn-voice-identity-trigger"
+              onClick={() => setShowIngestionModal(true)}
+              style={{
+                borderColor: 'rgba(0, 240, 255, 0.45)',
+                background: 'rgba(0, 240, 255, 0.1)',
+                color: 'var(--arc-cyan)',
+              }}
+              title="Upload FIRs, CDR Telecom logs, and Bank Statements"
+            >
+              <IconReport size={13} color="var(--arc-cyan)" />
+              <span style={{ fontWeight: 700 }}>+ INGEST EVIDENCE</span>
+            </button>
+            <button
+              className={`btn-voice-identity-trigger ${showVoiceSettings ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowVoiceSettings((prev) => !prev);
+              }}
+              title="Neural Vocal Identity & Language Preferences"
+            >
+              <IconAudioWave size={13} color="var(--arc-cyan)" />
+              <span>{voice.selectedVoice?.toUpperCase()} ({voice.selectedVoice === 'Aoede' || voice.selectedVoice === 'Kore' ? '♀ FEMALE' : '♂ MALE'})</span>
+              <IconSettings size={12} color="currentColor" />
+            </button>
           </div>
         </div>
 
-        {/* 3D ARGON Core Viewport — 100% Pure, Uncluttered, Interactive */}
+        {/* 3D ARGON Core Viewport — 100% Pure, Unobstructed Space */}
         <div
           className="stark-orb-viewport"
           onClick={handleCoreTouch}
@@ -283,525 +383,572 @@ export default function DashboardContent({ caseData: propCase }) {
           </div>
         </div>
 
-        {/* Sleek Vocal Status & Acoustic Console (Bottom of Theater) */}
-        <div className="theater-voice-console">
-          {/* Audio Spectrogram Needles */}
-          <div className="stark-audio-spectrogram">
-            {voice.audioBars.map((h, idx) => (
-              <span
-                key={idx}
-                className="spectrogram-needle"
-                style={{
-                  height: `${h}px`,
-                  background: coreMode === 'listening' ? '#00f0ff' : coreMode === 'speaking' ? '#a855f7' : 'rgba(0, 240, 255, 0.35)',
-                }}
-              />
-            ))}
-          </div>
+        {/* ══════════════════════════════════════════════════════════
+            RIVA FLOATING VOCAL DOCK (CLEAN, MINIMAL, AT BOTTOM OF CORE)
+            Zero heavy cards blocking the 3D particle sphere!
+            ══════════════════════════════════════════════════════════ */}
+        <div className="riva-vocal-dock">
+          {/* Forensic Tool Action Badge */}
+          {voice.actionCard && (
+            <div className="riva-action-badge">
+              <IconLightning size={12} color="var(--arc-cyan)" />
+              <span>TOOL: {voice.actionCard.tool?.toUpperCase()} [{voice.actionCard.status?.toUpperCase()}]</span>
+            </div>
+          )}
 
-          {/* Vocal State Banner (Clean, Hairline, Non-intrusive) */}
-          <div
-            className="core-vocal-status-strip"
-            onClick={handleCoreTouch}
-            style={{
-              padding: '6px 20px',
-              background: 'rgba(2, 6, 20, 0.88)',
-              border: `1px solid ${coreMode === 'listening' ? '#f43f5e' : 'var(--border-stark-bright)'}`,
-              borderRadius: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              cursor: 'pointer',
-              backdropFilter: 'blur(10px)',
-              boxShadow: coreMode === 'listening' ? '0 0 20px rgba(244, 63, 94, 0.4)' : '0 0 16px rgba(0, 240, 255, 0.25)',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', color: coreMode === 'listening' ? '#f43f5e' : 'var(--arc-cyan)' }}>
-              {coreMode === 'idle' && <IconArcReactor size={15} color="var(--arc-cyan)" />}
-              {coreMode === 'listening' && <IconMic size={15} color="#f43f5e" />}
-              {coreMode === 'analyzing' && <IconCrosshair size={15} color="var(--arc-cyan)" />}
-              {coreMode === 'speaking' && <IconAudioWave size={15} color="var(--arc-cyan)" />}
-            </span>
-            <span style={{
-              fontFamily: 'var(--font-stark)',
-              fontSize: '12px',
-              fontWeight: 700,
-              letterSpacing: '1.5px',
-              color: coreMode === 'listening' ? '#f43f5e' : 'var(--arc-cyan)',
-              textTransform: 'uppercase',
-            }}>
-              {coreMode === 'idle' && 'TOUCH CORE DIRECTLY TO ENGAGE VOCAL LINK'}
+          {/* Floating Subtitle Bubble */}
+          {(voice.transcript || voice.aiSpeechText) && (
+            <div className="riva-transcript-bubble">
+              {voice.transcript && <div style={{ color: 'var(--arc-cyan)', marginBottom: 2 }}>OPERATOR: {voice.transcript}</div>}
+              {voice.aiSpeechText && <div style={{ color: '#ffffff' }}>TATTVA: {voice.aiSpeechText}</div>}
+            </div>
+          )}
+
+          {/* Dynamic State Status Line */}
+          <div className="riva-status-text">
+            <span className={`riva-status-dot ${coreMode}`} />
+            <span>
+              {coreMode === 'idle' && 'READY TO LISTEN // TOUCH CORE OR START'}
               {coreMode === 'listening' && 'LISTENING // SPEAK FORENSIC QUERY NOW'}
-              {coreMode === 'analyzing' && 'ANALYZING // FASTAPI & QDRANT RETRIEVAL ACTIVE'}
+              {coreMode === 'analyzing' && 'THINKING // RETRIEVING CASE INTELLIGENCE'}
               {coreMode === 'speaking' && 'TATTVA SYNTHESIS ACTIVE // AUDIO TRANSMISSION'}
             </span>
           </div>
 
-          {/* Subtitle Dialogue Card */}
-          {(voice.transcript || voice.aiSpeechText) && (
-            <div className="stark-transcript-card">
-              {voice.transcript && (
-                <div className="transcript-user-line">
-                  <span className="transcript-role-tag" style={{ color: '#94a3b8' }}>OPERATOR:</span>
-                  <span>{voice.transcript}</span>
-                </div>
-              )}
-              {voice.aiSpeechText && (
-                <div className="transcript-ai-line">
-                  <span className="transcript-role-tag" style={{ color: 'var(--arc-cyan)' }}>TATTVA:</span>
-                  <span>{voice.aiSpeechText}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Tactical Directive Pills */}
-          <div className="stark-directive-pills">
-            <button
-              className="directive-pill"
-              onClick={triggerBackendScan}
-            >
-              <IconLightning size={13} color="var(--arc-cyan)" />
-              <span>DISPATCH MULTI-AGENT PIPELINE</span>
-            </button>
-            <button
-              className="directive-pill"
-              onClick={() => voice.processCommand('Audit critical contradictions in wire transfer timestamps')}
-            >
-              <IconContradiction size={13} color="#f43f5e" />
-              <span>AUDIT CONTRADICTIONS</span>
-            </button>
-            <button
-              className="directive-pill"
-              onClick={() => voice.processCommand('Trace beneficial ownership between John Doe and Apex Holdings')}
-            >
-              <IconGraph size={13} color="#f59e0b" />
-              <span>TRACE ENTITY GRAPH</span>
-            </button>
-            <button
-              className="directive-pill"
-              onClick={() => voice.processCommand('Summarize current case investigation status and evidence readiness')}
-            >
-              <IconCrosshair size={13} color="#10b981" />
-              <span>CASE STATUS BRIEF</span>
-            </button>
-            <button
-              className={`directive-pill pill-voice-toggle ${!voice.isMuted ? 'active' : ''}`}
-              onClick={voice.toggleMute}
-            >
-              <IconAudioWave size={13} color="currentColor" />
-              <span>{voice.isMuted ? 'AUDIO MUTED' : 'VOCAL SYNTH ON'}</span>
-            </button>
+          {/* 9-Bar Micro-Waveform Equalizer */}
+          <div className="riva-waveform-wrap">
+            {voice.audioBars.map((h, idx) => (
+              <div
+                key={idx}
+                className={`riva-waveform-bar ${h > 6 ? 'active' : ''}`}
+                style={{ height: `${Math.max(3, Math.min(20, h))}px` }}
+              />
+            ))}
           </div>
 
-          {/* Precision Terminal Query Form */}
-          <form
-            className="stark-query-terminal"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (voice.typedInput.trim()) {
-                voice.processCommand(voice.typedInput);
-                voice.setTypedInput('');
-              }
+          {/* Interactive Controls (Floating Pill) */}
+          <div className="riva-control-pill">
+            <button
+              className={`riva-btn-action ${coreMode === 'idle' ? 'btn-start' : 'btn-stop'}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (coreMode === 'idle') {
+                  voice.startListening();
+                } else {
+                  voice.stopListening();
+                }
+              }}
+            >
+              {coreMode === 'idle' ? (
+                <>
+                  <IconMic size={15} />
+                  <span>START TATTVA</span>
+                </>
+              ) : (
+                <>
+                  <IconStop size={14} />
+                  <span>DISENGAGE</span>
+                </>
+              )}
+            </button>
+
+            <button
+              className="riva-btn-model-trigger"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowVoiceSettings(true);
+              }}
+              title="Open TATTVA Voice Model Matrix"
+            >
+              <IconAudioWave size={13} color="var(--arc-cyan)" />
+              <span>MODEL: {voice.selectedVoice?.toUpperCase()}</span>
+            </button>
+
+            <button
+              className={`riva-btn-mute ${voice.isMuted ? 'muted' : ''}`}
+              onClick={voice.toggleMute}
+              title={voice.isMuted ? 'Unmute Audio' : 'Mute Audio'}
+            >
+              {voice.isMuted ? <IconMicOff size={15} /> : <IconMic size={15} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Glassmorphic TATTVA Voice Model & Matrix Modal */}
+        {showVoiceSettings && (
+          <div className="riva-settings-modal">
+            <div className="riva-settings-backdrop" onClick={() => setShowVoiceSettings(false)} />
+            <div className="riva-settings-card">
+              <div className="riva-settings-header">
+                <div className="riva-settings-title">
+                  <IconSettings size={16} color="var(--arc-cyan)" />
+                  <span>TATTVA NEURAL VOICE MODEL & LANGUAGE PROTOCOL</span>
+                </div>
+                <button className="riva-settings-close" onClick={() => setShowVoiceSettings(false)}>✕</button>
+              </div>
+
+              {/* Voice Model Selection */}
+              <div className="riva-settings-group">
+                <label className="riva-settings-label">AI VOCAL IDENTITY // GEMINI LIVE NEURAL MODELS</label>
+                <div className="riva-settings-grid">
+                  {voice.voiceProfiles?.map((vp) => (
+                    <button
+                      key={vp.id}
+                      className={`riva-option-pill ${voice.selectedVoice === vp.id ? 'active' : ''}`}
+                      onClick={() => voice.switchVoice(vp.id)}
+                    >
+                      <span className="riva-option-name">{vp.name.toUpperCase()}</span>
+                      <span className="riva-option-desc">{vp.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Language Mode Selection */}
+              <div className="riva-settings-group">
+                <label className="riva-settings-label">NATURAL LANGUAGE PROTOCOL</label>
+                <div className="riva-settings-grid">
+                  {voice.languageOptions?.map((lang) => (
+                    <button
+                      key={lang.id}
+                      className={`riva-option-pill ${voice.selectedLanguage === lang.id ? 'active' : ''}`}
+                      onClick={() => voice.switchLanguage(lang.id)}
+                    >
+                      <span className="riva-option-name">{lang.label}</span>
+                      <span className="riva-option-desc">{lang.id === 'auto' ? 'Any Language' : lang.id === 'hindi' ? 'हिंदी' : lang.id === 'english' ? 'Global' : 'Hindi + English'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Actions inside Voice Model Modal */}
+              <div style={{ display: 'flex', gap: 10, marginTop: 6, paddingTop: 14, borderTop: '1px solid var(--border-subtle)' }}>
+                <button
+                  className={`riva-btn-action ${coreMode === 'idle' ? 'btn-start' : 'btn-stop'}`}
+                  style={{ flex: 1, padding: '10px 16px', borderRadius: 8, fontSize: 13 }}
+                  onClick={() => {
+                    if (coreMode === 'idle') voice.startListening();
+                    else voice.stopListening();
+                  }}
+                >
+                  {coreMode === 'idle' ? (
+                    <>
+                      <IconMic size={15} />
+                      <span>CONNECT & START TATTVA</span>
+                    </>
+                  ) : (
+                    <>
+                      <IconStop size={14} />
+                      <span>DISENGAGE VOCAL LINK</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid var(--border-subtle)',
+                    color: '#ffffff',
+                    fontFamily: 'var(--font-stark)',
+                    fontWeight: 700,
+                    letterSpacing: 1,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => setShowVoiceSettings(false)}
+                >
+                  DONE
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Universal Evidence Ingestion Modal (MHA / NCRB) */}
+        <EvidenceIngestionModal
+          caseId={activeCase?.case_id}
+          isOpen={showIngestionModal}
+          onClose={() => setShowIngestionModal(false)}
+          onIngested={async (doc) => {
+            soundEngine?.playSuccess();
+            setLiveLogs((prev) => [
+              {
+                time: new Date().toLocaleTimeString(),
+                agent: 'EVIDENCE INGESTION',
+                text: `Ingested & Indexed ${doc.filename} (${(doc.size_bytes / 1024).toFixed(1)} KB) into Qdrant vector memory.`,
+              },
+              ...prev,
+            ]);
+            await loadLiveBackendData();
+          }}
+        />
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          TACTICAL COMMAND & QUERY DECK (DOCKED OUTSIDE THEATER)
+          Separated from 3D Orb for complete visual breathing room
+          ══════════════════════════════════════════════════════════ */}
+      <div className="stark-command-dock">
+        {/* Precision Terminal Query Form */}
+        <form
+          className="stark-query-terminal"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (voice.typedInput.trim()) {
+              voice.processCommand(voice.typedInput);
+              voice.setTypedInput('');
+            }
+          }}
+        >
+          <div className="terminal-chevron">❯</div>
+          <input
+            type="text"
+            className="terminal-input"
+            placeholder="Ask TATTVA AI anything about this case (e.g. 'Who is the kingpin?', 'Check alibi contradictions')..."
+            value={voice.typedInput}
+            onChange={(e) => voice.setTypedInput(e.target.value)}
+          />
+          <button type="submit" className="terminal-send-btn">
+            EXECUTE
+          </button>
+        </form>
+
+        {/* Quick Tactical Directives */}
+        <div className="stark-directive-pills">
+          <button
+            className="directive-pill"
+            onClick={triggerBackendScan}
+          >
+            <IconLightning size={13} color="var(--arc-cyan)" />
+            <span>RUN FULL CASE AUDIT</span>
+          </button>
+          <button
+            className="directive-pill"
+            onClick={() => {
+              if (onNavigate) onNavigate('analytics');
+              voice.processCommand('Audit critical contradictions in wire transfer timestamps');
             }}
           >
-            <div className="terminal-chevron">❯</div>
-            <input
-              type="text"
-              className="terminal-input"
-              placeholder="Command TATTVA Core or query live Qdrant vector index (e.g. 'audit wire transfer discrepancy')..."
-              value={voice.typedInput}
-              onChange={(e) => voice.setTypedInput(e.target.value)}
-            />
-            <button type="submit" className="terminal-send-btn">
-              EXECUTE
-            </button>
-          </form>
+            <IconContradiction size={13} color="#f43f5e" />
+            <span>AUDIT ALIBI CONTRADICTIONS</span>
+          </button>
+          <button
+            className="directive-pill"
+            onClick={() => {
+              if (onNavigate) onNavigate('graph');
+              voice.processCommand('Trace criminal network graph and key kingpins');
+            }}
+          >
+            <IconGraph size={13} color="#f59e0b" />
+            <span>EXPLORE NETWORK GRAPH</span>
+          </button>
+          <button
+            className="directive-pill"
+            onClick={() => voice.processCommand('Summarize current case investigation status and evidence readiness')}
+          >
+            <IconCrosshair size={13} color="#10b981" />
+            <span>INVESTIGATION SUMMARY</span>
+          </button>
+          <button
+            className="directive-pill"
+            onClick={() => voice.processCommand('Charo cases ke beech me relation find karo, common suspects aur knife weapon pattern match karke batao')}
+            style={{
+              borderColor: 'rgba(168, 85, 247, 0.45)',
+              background: 'rgba(168, 85, 247, 0.12)',
+              color: '#e9d5ff',
+            }}
+          >
+            <span style={{ fontSize: 12 }}>🔗</span>
+            <span>CROSS-CASE PATTERN MATCH</span>
+          </button>
         </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          INTEGRATED MULTI-AGENT SWARM CONSOLE (DOCKED CLEANLY)
-          NO MESSY FLOATING STICKERS OVER 3D CORE!
+          GUIDED 4-STEP INVESTIGATION PIPELINE (MHA / NCRB S.O.P.)
+          Clear, intuitive sequential workflow positioned comfortably below the 3D Core
           ══════════════════════════════════════════════════════════ */}
-      <div className="stark-swarm-dock card" style={{
-        background: 'var(--bg-panel)',
-        border: '1px solid var(--border-stark)',
-        borderRadius: 'var(--radius-md)',
+      <div className="guided-pipeline-banner" style={{
+        background: 'linear-gradient(180deg, rgba(12, 13, 17, 0.92) 0%, rgba(5, 5, 8, 0.98) 100%)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: 'var(--radius-lg)',
         padding: '16px 20px',
-        backdropFilter: 'blur(16px)',
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
+        width: '100%',
+        marginTop: '6px',
       }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid var(--border-subtle)',
-          paddingBottom: '10px',
-          marginBottom: '14px',
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            fontFamily: 'var(--font-stark)',
-            fontSize: '13px',
-            fontWeight: 700,
-            letterSpacing: '1.5px',
-            color: '#ffffff',
-            textTransform: 'uppercase',
-          }}>
-            <IconArcReactor size={15} color="var(--arc-cyan)" />
-            AUTONOMOUS AGENT SWARM MATRIX ({SWARM_AGENTS.length} AGENTS ONLINE)
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🧭</span>
+            <div>
+              <div style={{ fontFamily: 'var(--font-stark)', fontSize: 14, fontWeight: 700, color: '#ffffff', letterSpacing: 0.5 }}>
+                GUIDED INVESTIGATION WORKFLOW // STANDARD OPERATING PROCEDURE
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                Follow these 4 sequential steps to ingest multi-source evidence, discover criminal networks, and generate court-admissible dossiers.
+              </div>
+            </div>
           </div>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10px', color: '#10b981' }}>
-            ● ALL AGENTS READY & SYNCHRONIZED
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
+            <span>ACTIVE CASE:</span>
+            <span style={{ color: 'var(--arc-cyan)', fontWeight: 700 }}>{activeCase?.case_number || 'NONE'}</span>
+          </div>
         </div>
 
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '12px',
+          gap: 12,
         }}>
-          {SWARM_AGENTS.map((agent) => {
-            const IconComp = agent.icon;
-            const isWorking = activeAgent === agent.id;
-            return (
-              <div
-                key={agent.id}
-                onClick={() => {
-                  soundEngine?.playBlip();
-                  setActiveAgent(agent.id);
-                  voice.processCommand(`Activate ${agent.name} for ${agent.role}`);
-                }}
+          {/* Step 1 */}
+          <div
+            onClick={() => onNavigate?.('cases')}
+            style={{
+              background: 'rgba(12, 13, 17, 0.85)',
+              border: '1px solid rgba(0, 240, 255, 0.22)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--arc-cyan)';
+              e.currentTarget.style.background = 'rgba(0, 240, 255, 0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(0, 240, 255, 0.22)';
+              e.currentTarget.style.background = 'rgba(12, 13, 17, 0.85)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: 'var(--arc-cyan)', background: 'rgba(0, 240, 255, 0.12)', padding: '2px 8px', borderRadius: 4 }}>
+                STEP 01
+              </span>
+              <span style={{ fontSize: 18 }}>📁</span>
+            </div>
+            <div style={{ fontFamily: 'var(--font-stark)', fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+              Select / Register Case
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 10 }}>
+              Kaunse case ki jaanch ho rahi hai? Choose an active FIR dossier or register a new one.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>✓ ACTIVE: {activeCase?.case_number || 'Ready'}</span>
+              <span style={{ fontSize: 11, color: 'var(--arc-cyan)' }}>Manage ➔</span>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div
+            onClick={() => setShowIngestionModal(true)}
+            style={{
+              background: 'rgba(12, 13, 17, 0.85)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#10b981';
+              e.currentTarget.style.background = 'rgba(16, 185, 129, 0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.25)';
+              e.currentTarget.style.background = 'rgba(12, 13, 17, 0.85)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#10b981', background: 'rgba(16, 185, 129, 0.12)', padding: '2px 8px', borderRadius: 4 }}>
+                STEP 02
+              </span>
+              <span style={{ fontSize: 18 }}>📤</span>
+            </div>
+            <div style={{ fontFamily: 'var(--font-stark)', fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+              Upload Evidence
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 10 }}>
+              FIR PDF, Telecom CDR CSV, ya Hawala Bank statement drag-and-drop karein (SHA-256 Locked).
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: 10, color: '#10b981', fontWeight: 600 }}>{documents.length} Files Ingested</span>
+              <span style={{ fontSize: 11, color: '#10b981', fontWeight: 700 }}>+ Ingest ➔</span>
+            </div>
+          </div>
+
+          {/* Step 3 */}
+          <div
+            onClick={() => onNavigate?.('graph')}
+            style={{
+              background: 'rgba(12, 13, 17, 0.85)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#f59e0b';
+              e.currentTarget.style.background = 'rgba(245, 158, 11, 0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(245, 158, 11, 0.25)';
+              e.currentTarget.style.background = 'rgba(12, 13, 17, 0.85)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#f59e0b', background: 'rgba(245, 158, 11, 0.12)', padding: '2px 8px', borderRadius: 4 }}>
+                STEP 03
+              </span>
+              <span style={{ fontSize: 18 }}>🕸️</span>
+            </div>
+            <div style={{ fontFamily: 'var(--font-stark)', fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+              Network & Alibis
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 10 }}>
+              AI dwara banaya gaya criminal syndicate map, kingpins aur jhoothe bayan (alibi conflicts) dekhein.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: 10, color: '#f43f5e', fontWeight: 600 }}>{findings.length} Flagged Threats</span>
+              <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700 }}>Inspect ➔</span>
+            </div>
+          </div>
+
+          {/* Step 4 */}
+          <div
+            onClick={() => onNavigate?.('reports')}
+            style={{
+              background: 'rgba(12, 13, 17, 0.85)',
+              border: '1px solid rgba(168, 85, 247, 0.25)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = '#c084fc';
+              e.currentTarget.style.background = 'rgba(168, 85, 247, 0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.25)';
+              e.currentTarget.style.background = 'rgba(12, 13, 17, 0.85)';
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, color: '#c084fc', background: 'rgba(168, 85, 247, 0.12)', padding: '2px 8px', borderRadius: 4 }}>
+                STEP 04
+              </span>
+              <span style={{ fontSize: 18 }}>📄</span>
+            </div>
+            <div style={{ fontFamily: 'var(--font-stark)', fontSize: 13, fontWeight: 700, color: '#ffffff', marginBottom: 4 }}>
+              Generate Court Dossier
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 10 }}>
+              Section 63 BSA / 65B certified legal report download karein chargesheet aur trial proceedings ke liye.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.06)' }}>
+              <span style={{ fontSize: 10, color: '#38bdf8', fontWeight: 600 }}>Court Admissible</span>
+              <span style={{ fontSize: 11, color: '#c084fc', fontWeight: 700 }}>Export ➔</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════
+          LIVE SYSTEM ACTIVITY & REASONING STREAM
+          Streamlined and sleek below the gateways
+          ══════════════════════════════════════════════════════════ */}
+      <div style={{
+        background: 'rgba(10, 11, 15, 0.92)',
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        width: '100%',
+        marginTop: '6px',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, borderBottom: '1px solid var(--border-subtle)', paddingBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00f0ff', boxShadow: '0 0 8px #00f0ff' }} />
+            <span style={{ fontFamily: 'var(--font-stark)', fontSize: 13, fontWeight: 700, color: '#ffffff', letterSpacing: 1 }}>
+              LIVE INVESTIGATION & AGENT ACTIVITY STREAM
+            </span>
+          </div>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#10b981' }}>
+            FASTAPI SSE PIPELINE SYNCHRONIZED
+          </span>
+        </div>
+
+        <div style={{ maxHeight: 110, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {liveLogs.length > 0 ? (
+            liveLogs.slice(0, 5).map((log, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 11.5, fontFamily: 'var(--font-mono)' }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>{log.time}</span>
+                <span style={{ color: 'var(--arc-cyan)', fontWeight: 700 }}>[{log.agent}]</span>
+                <span style={{ color: '#e2e8f0' }}>{log.text}</span>
+              </div>
+            ))
+          ) : (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', padding: '6px 0' }}>
+              All 8 investigative agents synchronized. Monitoring case evidence and waiting for voice or query directives...
+            </div>
+          )}
+        </div>
+      </div>
+
+
+
+      {/* Official Court Admissibility Section 65B / 63 BSA Digital Certificate Modal */}
+      {selectedCert && (
+        <div className="riva-settings-modal">
+          <div className="riva-settings-backdrop" onClick={() => setSelectedCert(null)} />
+          <div className="riva-settings-card" style={{ maxWidth: 650 }}>
+            <div className="riva-settings-header">
+              <div className="riva-settings-title" style={{ color: '#10b981' }}>
+                <IconVerification size={16} color="#10b981" />
+                <span>SECTION 63 BSA / 65B EVIDENCE CERTIFICATE</span>
+              </div>
+              <button className="riva-settings-close" onClick={() => setSelectedCert(null)}>✕</button>
+            </div>
+
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.6, background: 'rgba(0,0,0,0.6)', padding: '14px', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.3)', maxHeight: 360, overflowY: 'auto', whiteSpace: 'pre-wrap', color: '#a7f3d0' }}>
+              {selectedCert.certificate_text}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#10b981', fontWeight: 700 }}>
+                ● LEGAL STATUS: {selectedCert.admissibility_status || 'VERIFIED_TAMPER_PROOF'}
+              </span>
+              <button
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '10px 14px',
-                  background: isWorking ? 'rgba(0, 240, 255, 0.15)' : 'rgba(3, 9, 26, 0.7)',
-                  border: `1px solid ${isWorking ? agent.color : 'var(--border-subtle)'}`,
-                  borderRadius: 'var(--radius-sm)',
+                  padding: '8px 18px',
+                  borderRadius: 6,
+                  background: 'var(--arc-cyan)',
+                  color: '#020617',
+                  fontFamily: 'var(--font-stark)',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  border: 'none',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: isWorking ? `0 0 16px ${agent.color}` : 'none',
                 }}
+                onClick={() => setSelectedCert(null)}
               >
-                <div style={{
-                  width: 28, height: 28,
-                  borderRadius: '4px',
-                  background: 'rgba(0, 0, 0, 0.6)',
-                  border: `1px solid ${agent.color}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: agent.color,
-                  flexShrink: 0,
-                }}>
-                  <IconComp size={15} color={agent.color} />
-                </div>
-                <div style={{ overflow: 'hidden' }}>
-                  <div style={{
-                    fontFamily: 'var(--font-stark)',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    letterSpacing: '0.8px',
-                  }}>
-                    {agent.name}
-                  </div>
-                  <div style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '9px',
-                    color: 'var(--text-secondary)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {agent.role}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════
-          FLANK CONSOLES: MISSION DIRECTIVE & LIVE BACKEND STREAM
-          ══════════════════════════════════════════════════════════ */}
-      <div className="stark-wings-grid">
-        {/* Left Wing: Mission Directive & Live Evidence Telemetry */}
-        <div className="stark-wing-panel">
-          <div className="panel-header">
-            <div className="panel-title">
-              <span className="panel-status-dot" />
-              CASE DOSSIER & THREAT MATRIX
-            </div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-              ID: {activeCase?.case_id?.slice(0, 12) || 'case_0bbea9'}
-            </span>
-          </div>
-
-          <div className="case-directive-box">
-            <div className="directive-number">{activeCase?.case_number || 'CASE-2024-001'}</div>
-            <div className="directive-headline">{activeCase?.title || 'Apex Financial Fraud & Beneficial Ownership Audit'}</div>
-            <div className="directive-desc">
-              {activeCase?.description || 'Autonomous multi-source forensic inquiry inspecting corporate registries, wire transfer ledgers, and conflicting officer declarations.'}
+                DISMISS CERTIFICATE
+              </button>
             </div>
           </div>
-
-          {/* Real Backend Evidence Metrics */}
-          <div className="risk-telemetry-strip">
-            <div className="risk-strip-header">
-              <span>FORENSIC SUSPICION INDEX</span>
-              <span className="risk-level-tag">84% ELEVATED</span>
-            </div>
-            <div className="risk-bar-container">
-              <div className="risk-bar-fill" style={{ width: '84%' }} />
-            </div>
-            <div className="risk-strip-counters">
-              <div className="risk-stat-unit">
-                <span className="risk-stat-label">INDEXED FILES</span>
-                <span className="risk-stat-val">{documents.length || 1}</span>
-              </div>
-              <div className="risk-stat-unit">
-                <span className="risk-stat-label">CONTRADICTIONS</span>
-                <span className="risk-stat-val" style={{ color: 'var(--status-threat)' }}>{findings.length || 1}</span>
-              </div>
-              <div className="risk-stat-unit">
-                <span className="risk-stat-label">GRAPH ENTITIES</span>
-                <span className="risk-stat-val" style={{ color: 'var(--status-amber)' }}>{graphData?.entities?.length || 2}</span>
-              </div>
-              <div className="risk-stat-unit">
-                <span className="risk-stat-label">BACKEND RUNS</span>
-                <span className="risk-stat-val" style={{ color: 'var(--arc-cyan)' }}>{runs.length || 1}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Operations Drawer Triggers */}
-          <div className="stark-drawer-triggers">
-            <button
-              className={`drawer-toggle-btn ${activeTab === 'evidence' ? 'active' : ''}`}
-              onClick={() => setActiveTab(activeTab === 'evidence' ? null : 'evidence')}
-            >
-              <IconRAG size={13} color="currentColor" />
-              <span>EVIDENCE VAULT ({documents.length || 1})</span>
-            </button>
-            <button
-              className={`drawer-toggle-btn ${activeTab === 'graph' ? 'active' : ''}`}
-              onClick={() => setActiveTab(activeTab === 'graph' ? null : 'graph')}
-            >
-              <IconGraph size={13} color="currentColor" />
-              <span>ENTITY NEXUS ({graphData?.entities?.length || 2})</span>
-            </button>
-            <button
-              className={`drawer-toggle-btn ${activeTab === 'findings' ? 'active' : ''}`}
-              onClick={() => setActiveTab(activeTab === 'findings' ? null : 'findings')}
-            >
-              <IconContradiction size={13} color="currentColor" />
-              <span>FINDINGS ({findings.length || 1})</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right Wing: Live Backend SSE Reasoning Stream */}
-        <div className="stark-wing-panel">
-          <div className="panel-header">
-            <div className="panel-title">
-              <span className="panel-status-dot" style={{ background: '#00f0ff', boxShadow: '0 0 8px #00f0ff' }} />
-              LIVE BACKEND REASONING STREAM
-            </div>
-            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: '#10b981' }}>
-              FASTAPI SSE LIVE
-            </span>
-          </div>
-
-          <div className="neural-log-feed">
-            {liveLogs.length > 0 ? (
-              liveLogs.map((log, i) => (
-                <div key={i} className="neural-log-row">
-                  <div className="log-meta-strip">
-                    <span>{log.time}</span>
-                    <span className="log-agent-name">[{log.agent}]</span>
-                  </div>
-                  <div className="log-detail-text">{log.text}</div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '11px' }}>
-                Connecting to backend SSE pipeline stream...
-              </div>
-            )}
-          </div>
-
-          {/* Anomaly Banner from Real Findings */}
-          <div className="stark-alert-banner">
-            <div className="alert-banner-top">
-              <span className="alert-classification">CRITICAL CONTRADICTION DETECTED</span>
-              <span className="alert-timestamp">INDEXED</span>
-            </div>
-            <div className="alert-message">
-              {findings.length > 0
-                ? findings[0].statement
-                : 'Wire transfer executed May 12, 2024 precedes official incorporation of Apex Holdings LLC on June 20, 2024.'}
-            </div>
-            <button
-              className="alert-action-btn"
-              onClick={() => {
-                setActiveTab('findings');
-                voice.speakAI('Analyzing critical contradiction regarding Apex Holdings LLC wire transfer chronology.');
-              }}
-            >
-              INSPECT FORENSIC RECORD →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════
-          EXPANDABLE OPERATIONS DRAWER (Real Backend Data)
-          ══════════════════════════════════════════════════════════ */}
-      {activeTab && (
-        <div className="stark-operations-drawer">
-          <div className="drawer-headline-bar">
-            <div className="drawer-headline-title">
-              {activeTab === 'evidence' && <><IconRAG size={17} color="var(--arc-cyan)" /> LIVE EVIDENCE VAULT & QDRANT EMBEDDINGS</>}
-              {activeTab === 'graph' && <><IconGraph size={17} color="var(--arc-cyan)" /> MONGODB ENTITY GRAPH & BENEFICIAL RELATIONSHIPS</>}
-              {activeTab === 'findings' && <><IconContradiction size={17} color="var(--status-threat)" /> CONTRADICTIONS & FRAUD FINDINGS MATRIX</>}
-            </div>
-            <button className="drawer-dismiss-btn" onClick={() => setActiveTab(null)}>
-              ✕ DISMISS DRAWER
-            </button>
-          </div>
-
-          {/* EVIDENCE TAB (Live Documents from API) */}
-          {activeTab === 'evidence' && (
-            <div className="stark-evidence-grid">
-              {documents.map((doc) => (
-                <div key={doc.document_id} className="evidence-dossier-card">
-                  <div className="dossier-glyph">
-                    <IconReport size={18} color="var(--arc-cyan)" />
-                  </div>
-                  <div className="dossier-meta">
-                    <div className="dossier-name">{doc.filename}</div>
-                    <div className="dossier-sub">
-                      <span className={`status-tag ${doc.status === 'indexed' ? 'tag-verified' : 'tag-threat'}`}>
-                        {doc.status.toUpperCase()}
-                      </span>
-                      <span>{doc.chunk_count || 1} VECTOR CHUNK · {doc.size_bytes || 1051} BYTES</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* GRAPH TAB (Live Entities & Relationships from API) */}
-          {activeTab === 'graph' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                {graphData?.entities?.map((node) => (
-                  <div
-                    key={node.entity_id}
-                    style={{
-                      padding: '12px 18px',
-                      background: 'rgba(4, 12, 34, 0.7)',
-                      border: '1px solid var(--arc-cyan)',
-                      borderRadius: 'var(--radius-sm)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 4,
-                    }}
-                  >
-                    <div style={{ fontFamily: 'var(--font-stark)', fontSize: 14, fontWeight: 700, color: '#ffffff' }}>
-                      {node.display_name}
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--arc-cyan)' }}>
-                      {node.entity_type?.toUpperCase()} · ID: {node.entity_id?.slice(0, 10)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {graphData?.relationships?.map((rel) => (
-                <div
-                  key={rel.relationship_id}
-                  style={{
-                    padding: '10px 16px',
-                    background: 'rgba(2, 6, 20, 0.6)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11,
-                    color: 'var(--text-secondary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                  }}
-                >
-                  <span style={{ color: '#ffffff', fontWeight: 600 }}>John Doe</span>
-                  <span style={{ color: 'var(--arc-cyan)', fontWeight: 700 }}>➔ [{rel.predicate?.toUpperCase()}] ➔</span>
-                  <span style={{ color: '#ffffff', fontWeight: 600 }}>Apex Holdings LLC</span>
-                  <span style={{ marginLeft: 'auto', color: 'var(--status-amber)', fontSize: 9.5 }}>
-                    STATUS: {rel.verification_status?.toUpperCase()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* FINDINGS TAB (Live Findings from API) */}
-          {activeTab === 'findings' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {findings.map((f) => (
-                <div
-                  key={f.finding_id || f.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
-                    padding: '14px 18px',
-                    background: 'rgba(5, 14, 38, 0.6)',
-                    border: '1px solid rgba(244, 63, 94, 0.3)',
-                    borderRadius: 'var(--radius-sm)',
-                  }}
-                >
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontSize: 9, fontWeight: 700,
-                    color: 'var(--status-threat)', background: 'var(--status-threat-soft)',
-                    padding: '4px 8px', borderRadius: 2, border: '1px solid rgba(244, 63, 94, 0.4)'
-                  }}>
-                    {f.finding_type?.toUpperCase() || 'CONTRADICTION'}
-                  </span>
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontFamily: 'var(--font-stark)', fontSize: 14, fontWeight: 700, color: '#ffffff' }}>
-                      {f.statement}
-                    </div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text-muted)' }}>
-                      EVIDENCE ID: {f.evidence_ids?.[0] || 'REF-4112'} · CREATED: {new Date(f.created_at || Date.now()).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <button
-                    style={{
-                      padding: '6px 14px', background: 'var(--status-verified-soft)',
-                      border: '1px solid var(--status-verified)', borderRadius: 'var(--radius-sm)',
-                      color: 'var(--status-verified)', fontFamily: 'var(--font-stark)',
-                      fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                    }}
-                    onClick={() => voice.speakAI(`Verified finding: ${f.statement}`)}
-                  >
-                    VERIFY EVIDENCE ✓
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -13,17 +13,18 @@ import {
 } from './StarkIcons';
 
 const NAV_ITEMS = [
-  { id: 'dashboard', label: 'TACTICAL MATRIX', icon: IconCrosshair },
-  { id: 'cases', label: 'CASE DOSSIERS', icon: IconPlanning },
-  { id: 'graph', label: 'ENTITY NEXUS', icon: IconGraph },
-  { id: 'documents', label: 'EVIDENCE VAULT', icon: IconRAG },
-  { id: 'reports', label: 'INTELLIGENCE BRIEFS', icon: IconReport },
+  { id: 'dashboard', label: 'TATTVA AI Core', icon: IconArcReactor },
+  { id: 'graph', label: 'Criminal Network Graph', icon: IconGraph },
+  { id: 'analytics', label: 'Tactical Threat Matrix', icon: IconCrosshair },
+  { id: 'documents', label: 'Evidence Intelligence', icon: IconRAG },
+  { id: 'cases', label: 'Case Dossiers', icon: IconPlanning },
+  { id: 'reports', label: 'Court Intelligence Briefs', icon: IconReport },
 ];
 
 const THEME_SWATCHES = [
   { key: 'tattva', color: '#00f0ff', label: 'ARC CYAN' },
   { key: 'sentinel', color: '#38bdf8', label: 'ICE BLUE' },
-  { key: 'overwatch', color: '#f59e0b', label: 'STARK GOLD' },
+  { key: 'overwatch', color: '#f59e0b', label: 'POLICE GOLD' },
   { key: 'stealth', color: '#10b981', label: 'STEALTH EMERALD' },
 ];
 
@@ -32,20 +33,20 @@ export default function Sidebar({ activePage, onNavigate }) {
 
   return (
     <aside className="app-sidebar">
-      {/* Stark Industries / TATTVA Emblem */}
+      {/* MHA NCRB / TATTVA Emblem */}
       <div className="sidebar-brand">
         <div className="sidebar-brand-icon">
           <IconArcReactor size={20} color="#00f0ff" />
         </div>
         <div className="sidebar-brand-text">
-          <div className="sidebar-brand-name">TATTVA MARK-VIII</div>
-          <div className="sidebar-brand-tagline">STARK INTELLIGENCE OS</div>
+          <div className="sidebar-brand-name">TATTVA FORENSIC</div>
+          <div className="sidebar-brand-tagline">MHA · NCRB INTELLIGENCE OS</div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="sidebar-nav">
-        <div className="sidebar-section-label">COMMAND DIRECTORY</div>
+        <div className="sidebar-section-label">Investigation Directory</div>
         {NAV_ITEMS.map((item) => {
           const IconComp = item.icon;
           const isActive = activePage === item.id;
@@ -60,7 +61,7 @@ export default function Sidebar({ activePage, onNavigate }) {
               href="#"
             >
               <span className="nav-icon-box">
-                <IconComp size={15} color={isActive ? '#00f0ff' : 'currentColor'} />
+                <IconComp size={15} color={isActive ? '#0ea5e9' : 'currentColor'} />
               </span>
               <span>{item.label}</span>
             </a>
@@ -79,11 +80,11 @@ export default function Sidebar({ activePage, onNavigate }) {
         >
           <div className="sidebar-voice-top">
             <div className="sidebar-voice-reactor">
-              <IconMic size={15} color="#00f0ff" />
+              <IconMic size={15} color="#0ea5e9" />
             </div>
             <div>
-              <div className="sidebar-voice-title">VOCAL LINK // ON</div>
-              <div className="sidebar-voice-sub">TOUCH CORE OR TAP HERE</div>
+              <div className="sidebar-voice-title">Vocal Assistant // Active</div>
+              <div className="sidebar-voice-sub">Touch Core or Tap Here</div>
             </div>
           </div>
         </div>

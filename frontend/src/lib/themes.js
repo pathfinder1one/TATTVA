@@ -9,57 +9,57 @@
 export const THEMES = {
   tattva: {
     name: 'TATTVA Core',
-    label: 'Navy / Purple / Blue',
-    // Backgrounds
-    bgDeep: '#020818',
-    bgPrimary: '#0a1744',
-    bgSecondary: '#0d1f52',
-    bgCard: 'rgba(13, 31, 82, 0.65)',
-    bgCardHover: 'rgba(13, 31, 82, 0.85)',
-    bgSurface: 'rgba(10, 23, 68, 0.45)',
-    bgOverlay: 'rgba(2, 8, 24, 0.92)',
-    bgSidebar: '#07112e',
+    label: 'Deep Obsidian Space',
+    // Backgrounds: Clean, deep, pure pitch-black obsidian space (NO murky blue)
+    bgDeep: '#030406',
+    bgPrimary: '#06070a',
+    bgSecondary: '#0c0d12',
+    bgCard: 'rgba(12, 13, 17, 0.88)',
+    bgCardHover: 'rgba(18, 20, 26, 0.95)',
+    bgSurface: 'rgba(10, 11, 15, 0.85)',
+    bgOverlay: 'rgba(2, 2, 4, 0.96)',
+    bgSidebar: '#030406',
 
     // Accent colors
-    accentPrimary: '#4a8ed6',
-    accentSecondary: '#6b4d8e',
-    accentTertiary: '#a8c8d4',
-    accentBright: '#5ea8f5',
-    accentGlow: '#4a8ed6',
+    accentPrimary: '#00f0ff',
+    accentSecondary: '#38bdf8',
+    accentTertiary: '#0ea5e9',
+    accentBright: '#7dd3fc',
+    accentGlow: 'rgba(0, 240, 255, 0.35)',
 
     // Status
-    statusVerified: '#22c55e',
-    statusDisputed: '#ef4444',
+    statusVerified: '#10b981',
+    statusDisputed: '#f43f5e',
     statusPending: '#f59e0b',
     statusUnresolved: '#a855f7',
-    statusInfo: '#3b82f6',
-    statusActive: '#00e5ff',
+    statusInfo: '#00f0ff',
+    statusActive: '#00f0ff',
 
     // Text
-    textPrimary: '#e2e8f0',
+    textPrimary: '#f8fafc',
     textSecondary: '#94a3b8',
     textMuted: '#64748b',
     textBright: '#ffffff',
 
     // Borders
-    borderPrimary: 'rgba(74, 142, 214, 0.3)',
-    borderSecondary: 'rgba(107, 77, 142, 0.3)',
-    borderSubtle: 'rgba(168, 200, 212, 0.15)',
+    borderPrimary: 'rgba(255, 255, 255, 0.1)',
+    borderSecondary: 'rgba(0, 240, 255, 0.25)',
+    borderSubtle: 'rgba(255, 255, 255, 0.07)',
 
     // 3D Core colors (for Three.js)
     core3d: {
-      core: '#a8c8d4',     // Light Teal core glow
-      bright: '#5ea8f5',   // Blue highlights
-      primary: '#6b4d8e',  // Purple filaments
-      secondary: '#0a1744', // Deep navy structure
-      hudHex: '#4a8ed6',
-      bgGrad: 'radial-gradient(circle at center, #0d1f52 0%, #050d28 68%, #020818 100%)',
+      core: '#ffeedd',
+      bright: '#ffaa33',
+      primary: '#ff5500',
+      secondary: '#06070a',
+      hudHex: '#00f0ff',
+      bgGrad: 'radial-gradient(circle at center, #0a0b10 0%, #030406 70%, #000000 100%)',
     },
 
     // Gradients
-    gradientPrimary: 'linear-gradient(135deg, #4a8ed6 0%, #6b4d8e 100%)',
-    gradientCard: 'linear-gradient(180deg, rgba(13, 31, 82, 0.8) 0%, rgba(7, 17, 46, 0.9) 100%)',
-    gradientSidebar: 'linear-gradient(180deg, #07112e 0%, #050d28 100%)',
+    gradientPrimary: 'linear-gradient(135deg, #00f0ff 0%, #0284c7 100%)',
+    gradientCard: 'linear-gradient(180deg, rgba(14, 15, 20, 0.9) 0%, rgba(6, 7, 10, 0.96) 100%)',
+    gradientSidebar: 'linear-gradient(180deg, #030406 0%, #000000 100%)',
   },
 
   sentinel: {

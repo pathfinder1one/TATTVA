@@ -67,10 +67,10 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.origins,
+    allow_origins=settings.origins if settings.app_env != "development" else ["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
-    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Request-Id", "X-User-Id", "X-Tenant-Id"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 app.add_middleware(RequestCorrelationMiddleware)
 install_exception_handlers(app)

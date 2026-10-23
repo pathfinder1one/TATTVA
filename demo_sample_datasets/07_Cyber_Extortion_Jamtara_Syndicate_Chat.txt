@@ -1,0 +1,35 @@
+================================================================================
+LAW ENFORCEMENT INTERCEPT TRANSCRIPT // CYBER CELL NCRB
+DIGITAL ARREST EXTORTION & HAWALA LAUNDERING SYNDICATE
+================================================================================
+CASE REFERENCE: FIR 088/2024 (CYBER-CRIME MEWAT-JAMTARA MODULE)
+INTERCEPT PLATFORM: VoIP / Virtual Private Network Intercept
+TARGET HANDLES: @shadow_operator (Mewat Hub), @farhan_bullion (Delhi Hub)
+DATE RANGE: 11-OCT-2024 TO 13-OCT-2024
+
+[INTERCEPT LOG: 12-OCT-2024 @ 16:30 IST]
+@shadow_operator:
+"Delhi victim has transferred the second tranche of Rs 48 Lakhs under digital arrest threat. 
+Funds deposited into Current Account No. 9184001928, Bandhan Bank, Mewat branch under dummy 
+entity 'Shree Shyam Logistics'."
+
+@farhan_bullion:
+"Received alert. Layering begins immediately. Do not keep cash in Mewat account for more than 
+20 minutes. Divert Rs 25 Lakhs to Al-Madina Trading & Bullion account in Chandni Chowk. 
+We have urgent settlement obligations tonight for Gurugram logistics clearance."
+
+@shadow_operator:
+"Split done. 5 IMPS transfers of Rs 5 Lakhs each executed to Al-Madina Trading. Balance Rs 23 Lakhs 
+withdrawn via ATM runners in Nuh and Alwar."
+
+@farhan_bullion:
+"Confirm receipt. Converted to 24-Karat gold bullion tokens. Delivering cash advance package 
+to Chhatarpur contact point before 20:00 hours."
+
+[FORENSIC EVIDENCE TAGS]
+- Bank Account: Bandhan Bank CA-9184001928 (Holder: Dummy Mule)
+- Target Shell Entity: Al-Madina Trading & Bullion Co.
+- Primary Broker: Farhan Qureshi
+- Cross-Case Linkage: Same bullion intermediary account used in Narcotics (CASE-2024-023) 
+  and Contract Homicide (CASE-2024-041).
+================================================================================

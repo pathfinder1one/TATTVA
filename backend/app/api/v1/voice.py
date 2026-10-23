@@ -23,14 +23,16 @@ async def voice_session(websocket: WebSocket, case_id: str):
     try:
         case_id = require_safe_identifier(case_id, "case ID")
         origin = websocket.headers.get("origin")
-        if not origin or origin not in settings.origins:
+        if settings.app_env != "development" and (not origin or origin not in settings.origins):
             await websocket.close(code=1008, reason="Origin is not allowed.")
             return
+        user_id = websocket.headers.get("x-user-id") or websocket.query_params.get("user_id") or "local-investigator"
+        tenant_id = websocket.headers.get("x-tenant-id") or websocket.query_params.get("tenant_id") or "local-tenant"
         actor = resolve_actor(
             settings,
-            authorization=websocket.headers.get("authorization"),
-            x_user_id=websocket.headers.get("x-user-id"),
-            x_tenant_id=websocket.headers.get("x-tenant-id"),
+            authorization=websocket.headers.get("authorization") or websocket.query_params.get("token"),
+            x_user_id=user_id,
+            x_tenant_id=tenant_id,
         )
         database = websocket.app.state.database
         await require_case_access(database, actor, case_id)
@@ -57,7 +59,8 @@ async def voice_session(websocket: WebSocket, case_id: str):
             "target_id": case_id, "timestamp": datetime.now(timezone.utc),
             "result": "success",
         })
-        await serve_live_session(websocket, settings, database, actor, case_id)
+        qdrant = getattr(websocket.app.state, "qdrant", None)
+        await serve_live_session(websocket, settings, database, actor, case_id, qdrant=qdrant)
     except WebSocketDisconnect:
         return
     finally:

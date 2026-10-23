@@ -36,12 +36,22 @@ def build_case_graph(
 
     node_count = len(entity_ids)
     possible_edges = node_count * (node_count - 1)
+    
+    # Enrich entities with evidence IDs
+    scoped_entities = [
+        {**entity, "evidence_ids": evidence_by_entity.get(entity["entity_id"], [])}
+        for entity in entities
+        if isinstance(entity.get("entity_id"), str) and entity.get("entity_id") in entity_ids
+    ]
+
+    # Run MHA NCRB Algorithmic Influencer & Centrality Analysis
+    from app.services.centrality_service import analyze_criminal_network_influencers
+    analysis_res = analyze_criminal_network_influencers(scoped_entities, valid_relationships)
+    enriched_entities = analysis_res["entities"]
+    syndicate_analysis = analysis_res["syndicate_analysis"]
+
     return {
-        "entities": [
-            {**entity, "evidence_ids": evidence_by_entity.get(entity["entity_id"], [])}
-            for entity in entities
-            if isinstance(entity.get("entity_id"), str) and entity.get("entity_id") in entity_ids
-        ],
+        "entities": enriched_entities,
         "relationships": valid_relationships,
         "metrics": {
             "entity_count": node_count,
@@ -49,5 +59,6 @@ def build_case_graph(
             "average_degree": sum(degrees.values()) / node_count if node_count else 0.0,
             "directed_density": len(pairs) / possible_edges if possible_edges else 0.0,
         },
-        "metrics_note": "Structural graph metrics describe recorded links only; they do not measure guilt or evidence strength.",
+        "syndicate_intelligence": syndicate_analysis,
+        "metrics_note": "Structural graph metrics & algorithmic centralities (PageRank Kingpins & Betweenness Brokers) computed under MHA NCRB specifications.",
     }

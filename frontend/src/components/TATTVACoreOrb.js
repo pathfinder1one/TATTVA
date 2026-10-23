@@ -190,21 +190,31 @@ function CoreGroup({ colors, mode = 'idle', onCoreClick, audioLevel = 0 }) {
 
   return (
     <group ref={coreGroupRef}>
-      {/* Clickable hit sphere */}
+      {/* Clickable hit sphere for Core interaction (visible=true with transparent opacity=0 for raycasting) */}
       <mesh
         onClick={(e) => {
           e.stopPropagation();
-          onCoreClick?.();
+          onCoreClick?.(e);
         }}
-        visible={false}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+        }}
       >
-        <sphereGeometry args={[2.8, 16, 16]} />
-        <meshBasicMaterial transparent opacity={0} />
+        <sphereGeometry args={[3.4, 32, 32]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       {/* 8 Plasma Ribbons */}
       {ribbons.map((rb, i) => (
-        <mesh key={`ribbon-${i}`} geometry={rb.geometry} rotation={rb.rotation}
-          ref={el => { ribbonRefs.current[i] = el; }}>
+        <mesh
+          key={`ribbon-${i}`}
+          geometry={rb.geometry}
+          rotation={rb.rotation}
+          ref={el => { ribbonRefs.current[i] = el; }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCoreClick?.(e);
+          }}
+        >
           <meshBasicMaterial
             color={rb.isCore ? coreColor : brightColor}
             transparent opacity={0.72}
@@ -214,7 +224,14 @@ function CoreGroup({ colors, mode = 'idle', onCoreClick, audioLevel = 0 }) {
       ))}
 
       {/* Outer Geodesic Wireframe */}
-      <lineSegments ref={outerMeshRef} geometry={outerWire}>
+      <lineSegments
+        ref={outerMeshRef}
+        geometry={outerWire}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCoreClick?.(e);
+        }}
+      >
         <lineBasicMaterial
           color={coreColor} transparent opacity={0.82}
           blending={THREE.AdditiveBlending} depthWrite={false}
@@ -669,6 +686,16 @@ export default function TATTVACoreOrb({
   const { theme } = useTheme();
   const c3d = theme.core3d;
 
+  const pointerDownPos = useRef({ x: 0, y: 0, time: 0 });
+  const lastTriggerTime = useRef(0);
+
+  const safeTrigger = useCallback((e) => {
+    const now = Date.now();
+    if (now - lastTriggerTime.current < 280) return;
+    lastTriggerTime.current = now;
+    onCoreClick?.(e);
+  }, [onCoreClick]);
+
   return (
     <div
       className={className}
@@ -678,9 +705,20 @@ export default function TATTVACoreOrb({
         cursor: 'pointer',
         ...style,
       }}
+      onPointerDown={(e) => {
+        pointerDownPos.current = { x: e.clientX, y: e.clientY, time: Date.now() };
+      }}
+      onPointerUp={(e) => {
+        const dx = Math.abs(e.clientX - pointerDownPos.current.x);
+        const dy = Math.abs(e.clientY - pointerDownPos.current.y);
+        const dt = Date.now() - pointerDownPos.current.time;
+        // If moved less than 12px within 600ms, it is a clean tap/click
+        if (dx < 12 && dy < 12 && dt < 600) {
+          safeTrigger(e);
+        }
+      }}
       onClick={(e) => {
-        // Also trigger onCoreClick on container tap/click
-        onCoreClick?.();
+        safeTrigger(e);
       }}
     >
       <Canvas
@@ -699,7 +737,7 @@ export default function TATTVACoreOrb({
         <MainScene
           colors={c3d}
           mode={mode}
-          onCoreClick={onCoreClick}
+          onCoreClick={safeTrigger}
           audioLevel={audioLevel}
         />
 
@@ -711,10 +749,10 @@ export default function TATTVACoreOrb({
 
         <EffectComposer>
           <Bloom
-            intensity={mode === 'listening' ? 2.2 : mode === 'analyzing' ? 2.5 : 1.68 * 0.80}
-            luminanceThreshold={0.06}
-            luminanceSmoothing={0.52}
-            radius={0.6}
+            intensity={mode === 'listening' ? 1.4 : mode === 'analyzing' ? 1.6 : 0.85}
+            luminanceThreshold={0.12}
+            luminanceSmoothing={0.65}
+            radius={0.5}
           />
         </EffectComposer>
       </Canvas>

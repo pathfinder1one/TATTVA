@@ -21,3 +21,7 @@ class EvidenceRepository:
             {"evidence_id": {"$in": evidence_ids}, "case_id": case_id, "tenant_id": tenant_id}
         )
         return await cursor.to_list(length=100)
+
+    async def list_for_case(self, case_id: str, tenant_id: str) -> list[dict]:
+        cursor = self.collection.find({"case_id": case_id, "tenant_id": tenant_id})
+        return await cursor.to_list(length=200)

@@ -7,6 +7,9 @@ from docx import Document as WordDocument
 from fastapi import HTTPException
 from pypdf import PdfReader
 
+from app.services.parsers.cdr_parser import is_cdr_csv, parse_cdr_file
+from app.services.parsers.financial_parser import is_financial_csv, parse_financial_file
+
 PARSER_VERSION = "tattva-text-v1"
 
 
@@ -106,6 +109,23 @@ def _parse_csv(path: Path) -> list[TextUnit]:
         reader = csv.DictReader(source)
         if not reader.fieldnames:
             raise ValueError("CSV must have a header row.")
+        fieldnames = list(reader.fieldnames)
+
+    # 1. Check for Telecom CDR format
+    if is_cdr_csv(fieldnames):
+        full_text, records, summary = parse_cdr_file(path)
+        units = [TextUnit("record", idx, line) for idx, line in enumerate(records, start=1)]
+        return units
+
+    # 2. Check for Banking / Hawala financial ledger format
+    if is_financial_csv(fieldnames):
+        full_text, records, summary = parse_financial_file(path)
+        units = [TextUnit("record", idx, line) for idx, line in enumerate(records, start=1)]
+        return units
+
+    # 3. Standard CSV generic ingestion
+    with path.open("r", encoding="utf-8-sig", newline="") as source:
+        reader = csv.DictReader(source)
         units = []
         for row_number, row in enumerate(reader, start=1):
             clean = {key: value for key, value in row.items() if key is not None}

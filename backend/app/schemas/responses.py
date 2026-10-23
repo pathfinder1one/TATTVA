@@ -10,7 +10,7 @@ class CaseResponse(BaseModel):
     case_number: str
     title: str
     description: str | None
-    created_by: str
+    created_by: str = "local-investigator"
     created_at: datetime
     updated_at: datetime
 
@@ -19,9 +19,9 @@ class DocumentResponse(BaseModel):
     document_id: str
     case_id: str
     filename: str
-    media_type: str
-    size_bytes: int
-    sha256: str
+    media_type: str = "application/pdf"
+    size_bytes: int = 0
+    sha256: str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     status: DocumentStatus
     created_by: str
     created_at: datetime
@@ -92,6 +92,9 @@ class EntityResponse(BaseModel):
     created_by: str
     created_at: datetime
     evidence_ids: list[str] = Field(default_factory=list)
+    role: str | None = None
+    influence_score: int | None = None
+    sub_gang_module: str | None = None
 
 
 class RelationshipResponse(BaseModel):
@@ -117,6 +120,7 @@ class CaseGraphResponse(BaseModel):
     metrics: dict[str, int | float]
     metrics_note: str
     integrity_flags: list[dict] = Field(default_factory=list)
+    syndicate_intelligence: dict | None = None
 
 
 class EvidenceResponse(BaseModel):

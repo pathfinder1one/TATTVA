@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'TATTVA // STARK-GRADE INTELLIGENCE CORE',
-  description: 'Autonomous Defense & Fraud Investigation Intelligence Platform — Powered by TATTVA Multi-Agent Neural Core.',
+  title: 'TATTVA // AI-Powered Criminal Network Analysis System (MHA / NCRB)',
+  description: 'Ministry of Home Affairs & National Crime Records Bureau — Autonomous Multi-Agent Criminal Intelligence & Forensic Graph Nexus.',
 };
 
 export default function RootLayout({ children }) {

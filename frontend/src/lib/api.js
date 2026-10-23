@@ -103,11 +103,32 @@ export async function getChunk(caseId, documentId, chunkId) {
   return handleResponse(res);
 }
 
+export async function getDocumentCertificate(caseId, documentId) {
+  const res = await fetch(`${API_V1}/cases/${caseId}/documents/${documentId}/certificate`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
 // ============================================================
 // Evidence
 // ============================================================
+export async function listEvidence(caseId) {
+  const res = await fetch(`${API_V1}/cases/${caseId}/evidence`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
 export async function getEvidence(caseId, evidenceId) {
   const res = await fetch(`${API_V1}/cases/${caseId}/evidence/${evidenceId}`, {
+    headers: getAuthHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function getEvidenceCertificate(caseId, evidenceId) {
+  const res = await fetch(`${API_V1}/cases/${caseId}/evidence/${evidenceId}/certificate`, {
     headers: getAuthHeaders(),
   });
   return handleResponse(res);

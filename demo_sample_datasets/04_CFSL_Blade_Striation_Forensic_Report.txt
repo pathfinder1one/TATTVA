@@ -1,0 +1,33 @@
+================================================================================
+CENTRAL FORENSIC SCIENCE LABORATORY (CFSL) // NEW DELHI
+PHYSICAL & METALLURGICAL FORENSIC DIVISION // BALLISTICS WING
+GOVERNMENT OF INDIA // MINISTRY OF HOME AFFAIRS
+================================================================================
+REPORT REFERENCE: CFSL-PHY-2024-BLD-092
+DATE OF DISPATCH: 18-OCT-2024
+EXAMINING SCIENTIST: Dr. K. Radhakrishnan, Senior Principal Scientific Officer
+
+SUBJECT: METALLURGICAL & STRIATION COMPARISON REPORT
+EXHIBIT Q-1 (Recovered from Case 041/2024 Delhi) vs EXHIBIT Q-2 (Recovered from Case 055/2024 Noida)
+
+1. DESCRIPTION OF EXHIBITS:
+   - Exhibit Q-1: High-carbon tool steel blade fragment recovered from thorax of victim Rajesh Malhotra (CASE-2024-041).
+   - Exhibit Q-2: Intact tactical combat knife recovered from stormwater drain near Sector-128 basement parking (CASE-2024-055).
+
+2. MICROSCOPIC & COMPARISON METALLURGICAL FINDINGS:
+   - Blade Profile: Japanese Tanto Profile with reinforced chisel-point geometry.
+   - Blade Length & Thickness: Measured exact length of 12.0 cm, 4.2 mm spine thickness.
+   - Notch & Serration Pattern: 4 distinct micro-groove serrations along the secondary cutting bevel, 
+     spaced at an interval of 6.25 mm with 45-degree angled teeth.
+   - Electron Microscope Striation Match: Striation markings imparted by the CNC grinding stone on Exhibit Q-1 
+     micro-serrations match the grinding toolmarks on Exhibit Q-2 with a 99.4% probability index.
+
+3. FORENSIC OPINION & LEGAL CONCLUSION:
+   The physical examination, micro-groove striation patterns, and metallurgical alloy composition confirm that 
+   Exhibit Q-1 and Exhibit Q-2 originate from the EXACT SAME custom-fabricated knife batch. The wound geometry 
+   in both the South Delhi homicide (FIR 041/2024) and the Noida Sector-128 double homicide (FIR 055/2024) was 
+   inflicted either by the same weapon or an identical blade from a bespoke contract pair.
+
+CERTIFIED UNDER SECTION 39 CRPC / SECTION 63 BHARATIYA SAKSHYA ADHINIYAM.
+LABORATORY SEAL VERIFIED: CFSL-DL-SEC-4412
+================================================================================

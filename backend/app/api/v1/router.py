@@ -12,6 +12,7 @@ from app.api.v1.answers import router as answers_router
 from app.api.v1.reports import router as reports_router
 from app.api.v1.findings import router as findings_router
 from app.api.v1.voice import router as voice_router
+from app.api.v1.cross_case import router as cross_case_router
 
 api_router = APIRouter()
 api_router.include_router(cases_router)
@@ -26,3 +27,4 @@ api_router.include_router(answers_router)
 api_router.include_router(reports_router)
 api_router.include_router(findings_router)
 api_router.include_router(voice_router)
+api_router.include_router(cross_case_router)

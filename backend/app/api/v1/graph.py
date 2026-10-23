@@ -30,6 +30,7 @@ async def get_case_graph(
         relationships=[RelationshipResponse(**relationship) for relationship in graph["relationships"]],
         metrics=graph["metrics"],
         metrics_note=graph["metrics_note"],
+        syndicate_intelligence=graph.get("syndicate_intelligence"),
         integrity_flags=[
             flag.model_dump(mode="json")
             for flag in detect_graph_integrity_flags(
